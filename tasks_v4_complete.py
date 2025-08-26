@@ -737,17 +737,16 @@ def fetch_pubtator_abstract(pmid: str) -> dict:
         details['title'] = title_match.group(1).strip() if title_match else "Titre non trouvé"
         details['abstract'] = abstract_match.group(1).strip() if abstract_match else ""
 
-        # Tenter de récupérer le DOI en parallèle
         details['doi'] = get_doi_from_pmid(pmid)
 
-        time.sleep(0.2)  # politesse API
-        # CORRECTION : Retourner le dictionnaire 'details' qui contient toutes les informations
+        time.sleep(0.2)
+        # CORRECTION : S'assurer de retourner le dictionnaire complet 'details'
         return details
 
     except Exception as e:
         print(f"❌ PubTator erreur pour PMID {pmid}: {e}")
         return {'id': pmid, 'title': 'Erreur de récupération', 'abstract': ''}
-
+        
 def fetch_arxiv_details(arxiv_id: str) -> dict:
     """Récupère les détails d'un article arXiv."""
     try:

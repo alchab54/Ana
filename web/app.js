@@ -296,27 +296,29 @@ function handleWebSocketNotification(data) {
     const { type, project_id } = data;
 
     switch (type) {
-        case 'search_completed':
         case 'article_processed':
+            // Si l'utilisateur est sur la page des résultats du bon projet,
+            // on met à jour uniquement les extractions et on redessine le tableau.
+            if (project_id === appState.currentProject?.id && appState.currentSection === 'results') {
+                (async () => {
+                    await loadProjectExtractions(project_id);
+                    renderResultsSection(); // Redessine uniquement la section des résultats
+                })();
+            }
+            break;
+
+        case 'search_completed':
         case 'synthesis_completed':
         case 'analysis_completed':
         case 'pdf_upload_completed':
         case 'indexing_completed':
+            // Pour les autres notifications, un rechargement complet reste approprié.
             if (project_id === appState.currentProject?.id) {
                 selectProject(project_id, true);
             } else {
                 loadProjects();
             }
             break;
-		case 'generate-prisma-flow':
-			if (!appState.currentProject) return;
-			if (confirm("Lancer la génération du diagramme PRISMA ? Cela peut prendre du temps.")) {
-				showLoadingOverlay(true, "Lancement de l'analyse PRISMA...");
-				fetchAPI(`/projects/${appState.currentProject.id}/generate-prisma`, { method: 'POST' })
-					.then(() => showToast("Génération du diagramme lancée.", "info"))
-					.finally(() => showLoadingOverlay(false));
-			}
-			break;
     }
 }
 

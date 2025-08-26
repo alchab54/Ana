@@ -40,9 +40,9 @@ RUN python -m pip install --upgrade pip setuptools wheel
 # Utilise --no-cache-dir pour s'assurer que les paquets sont toujours téléchargés
 # Utilise --ignore-installed --no-deps pour blinker afin de gérer le conflit avec les paquets système
 COPY requirements.txt .
-RUN python -m pip install --no-cache-dir --ignore-installed --no-deps blinker==1.7.0 && \
-    python -m pip install --no-cache-dir --ignore-installed -r requirements.txt
-
+RUN python -m pip install --no-cache-dir --ignore-installed -r requirements.txt && \
+    python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+	
 # --- Copie du reste de l'application ---
 # Ces fichiers peuvent changer fréquemment, donc ils sont copiés à la fin
 COPY config_v4.py .
