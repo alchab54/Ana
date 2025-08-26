@@ -1,0 +1,192 @@
+# docker-compose-local.yml - Version avec PostgreSQL
+services:
+
+  # --- NGINX : Reverse Proxy ---
+  nginx:
+    image: nginx:1.25.3-alpine
+    container_name: analylit-nginx-v4
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx_complete.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./web:/usr/share/nginx/html:ro
+    networks:
+      - analylit-network
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 0.25g
+          cpus: '0.5'
+
+  # --- SERVEUR WEB PRINCIPAL ---
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile-web-complete
+      target: final_web
+    networks:
+      - analylit-network
+    environment:
+      # CHANGEMENT: URL de la base de données pointe vers PostgreSQL
+      - DATABASE_URL=postgresql://analylit_user:analylit@db/analylit_db
+      - SECRET_KEY=${SECRET_KEY:-8cfb18e58a85676a34a6658a0263b48b85c74799edb807f38}
+      - FLASK_ENV=${FLASK_ENV:-development}
+      - FLASK_DEBUG=true
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - ANALYLIT_VERSION=4.0.0
+      - UNPAYWALL_EMAIL=${UNPAYWALL_EMAIL:-alicechabaux@gmail.com}
+      - ZOTERO_API_KEY=d9ktu2TS9DIovtjLV3N9sOel
+      - PYTHONPATH=/app
+      - USE_GPU=true
+      - NVIDIA_VISIBLE_DEVICES=0
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      - ./projects:/app/projects
+      - ./web:/app/web:ro
+      - .:/app
+    command: >
+      sh -c "sleep 10 &&
+      python -c 'from server_v4_complete import init_db; init_db()' &&
+      gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:5001 server_v4_complete:app"
+    depends_on:
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      db: # CHANGEMENT: Dépend de la base de données
+        condition: service_healthy
+    restart: unless-stopped
+    runtime: nvidia
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://web:5001/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- WORKER POUR TÂCHES DE FOND ---
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile-worker-complete
+      target: final_worker
+    networks:
+      - analylit-network
+    environment:
+      # CHANGEMENT: URL de la base de données pointe vers PostgreSQL
+      - DATABASE_URL=postgresql://analylit_user:analylit@db/analylit_db
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - USE_GPU=true
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - NVIDIA_VISIBLE_DEVICES=0
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - ZOTERO_API_KEY=d9ktu2TS9DIovtjLV3N9sOel
+    volumes:
+      - ./projects:/app/projects
+      - .:/app
+    command: python -m rq.cli worker -u redis://redis:6379/0 --with-scheduler analylit_processing_v4 analylit_synthesis_v4 analylit_analysis_v4 analylit_background_v4
+    depends_on:
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      db: # CHANGEMENT: Dépend de la base de données
+        condition: service_healthy
+    restart: unless-stopped
+    runtime: nvidia
+
+  # --- NOUVEAU SERVICE: BASE DE DONNÉES POSTGRESQL ---
+  db:
+    image: postgres:15-alpine
+    container_name: analylit-postgres-v4
+    environment:
+      - POSTGRES_USER=analylit_user
+      - POSTGRES_PASSWORD=analylit # Mettez le même mot de passe que dans DATABASE_URL
+      - POSTGRES_DB=analylit_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - analylit-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U analylit_user -d analylit_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # --- OLLAMA AVEC SUPPORT GPU NVIDIA ---
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - analylit-network
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - OLLAMA_MAX_LOADED_MODELS=2
+      - OLLAMA_KEEP_ALIVE=30m
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        limits:
+          memory: 6g
+          cpus: '4.0'
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # --- REDIS POUR CACHE ET QUEUES ---
+  redis:
+    image: redis:7-alpine
+    container_name: analylit-redis-v4
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - analylit-network
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 300
+      --save 60 1000
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 0.5g
+          cpus: '0.5'
+
+networks:
+  analylit-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+  # CHANGEMENT: Ajout du volume pour PostgreSQL
+  postgres_data:
+    driver: local

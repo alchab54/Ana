@@ -1,0 +1,322 @@
+# AnalyLit V4.0 - Fichiers à ignorer par Git
+
+# === DONNÉES SENSIBLES ===
+.env*
+.env.local
+.env.production
+.env.staging
+.env.development
+
+# Clés API et secrets
+*_config.json
+zotero_config.json
+api_keys/
+secrets/
+*.pem
+*.key
+*.crt
+*.cert
+
+# === DONNÉES PROJET ===
+# Dossier des projets (contient les données utilisateur)
+/projects/
+/data/
+projects/**/*.db
+projects/**/*.sqlite*
+projects/**/chroma_db/
+
+# Sauvegardes
+backups/
+exports/
+reports/
+*.tar.gz
+*.zip
+*.bak
+
+# === LOGS ===
+*.log
+logs/
+/var/log/
+*.out
+
+# === BASE DE DONNÉES ===
+*.db
+*.sqlite
+*.sqlite3
+database.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# === PYTHON ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff (au cas où)
+local_settings.py
+
+# Flask stuff
+instance/
+.webassets-cache
+
+# Scrapy stuff
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# === NODEJS (si front-end séparé) ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+.pnp.*
+
+# === DOCKER ===
+# Ignore des volumes locaux et overrides
+.docker/
+docker-compose.override.yml
+docker-compose.local.override.yml
+
+# === SYSTÈME ===
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Linux
+*~
+.directory
+.gvfs
+
+# Windows
+*.tmp
+*.temp
+desktop.ini
+$RECYCLE.BIN/
+
+# === ÉDITEURS ===
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Sublime Text
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+*.sublime-workspace
+*.sublime-project
+
+# === MODÈLES IA ===
+# Modèles téléchargés (stockés dans volumes Docker)
+*.gguf
+*.ggml
+*.bin
+models/
+model_cache/
+/ollama_data/
+
+# Cache sentence-transformers
+/sentence_transformers_cache/
+
+# === CHROMADB ET VECTORISATION ===
+chroma_db/
+*.parquet
+*.faiss
+embeddings/
+
+# === ANALYSES ET RAPPORTS ===
+# Graphiques et images générés
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+!web/assets/*.png
+!web/assets/*.jpg
+!web/assets/*.jpeg
+!web/assets/*.svg
+!static/*.png
+!static/*.jpg
+!static/*.jpeg
+!static/*.svg
+
+# Fichiers d'analyse temporaires
+*.prof
+temp_analysis/
+
+# === REDIS ET CACHE ===
+dump.rdb
+appendonly.aof
+
+# === AnalyLit SPÉCIFIQUES ===
+# Fichiers temporaires de traitement PDF
+temp_pdf/
+pdf_cache/
+*.extracted
+
+# Export de données
+*.csv
+*.xlsx
+!templates/*.csv
+!examples/*.csv
+
+# Logs RQ (Redis Queue)
+rq.log
+worker*.log
+
+# Fichiers de métadonnées temporaires
+*.meta
+*.index
+
+# Cache des recherches
+search_cache/
+
+# === SÉCURITÉ RENFORCÉE ===
+# Éviter l'exposition accidentelle de secrets
+*secret*
+*password*
+*token*
+*credential*
+!requirements.txt
+!**/templates/**
+!**/examples/**

@@ -1,0 +1,58 @@
+# Core Flask
+Flask==2.3.3
+Flask-CORS==4.0.0
+Flask-SocketIO==5.3.6
+blinker>=1.7.0
+
+# Base de données et files d'attente - VERSIONS FIXES
+redis==5.0.1
+rq==1.15.1
+click>=8.0.0
+
+# Traitement de données
+pandas==2.1.1
+numpy==1.24.4
+matplotlib==3.7.2
+scipy==1.11.3
+
+# IA et NLP - VERSIONS COMPATIBLES
+sentence-transformers==2.3.1
+huggingface_hub==0.25.2
+langchain==0.0.325
+chromadb==0.4.15
+
+# Traitement PDF
+PyPDF2==3.0.1
+
+# API externes
+requests==2.31.0
+pyzotero==1.6.11
+arxiv==1.4.8
+crossref-commons==0.0.7
+
+# Serveur web
+gunicorn==21.2.0
+gevent==23.7.0
+python-socketio==5.9.0
+
+# Utilitaires
+python-dotenv==1.0.0
+Pillow==10.0.1
+beautifulsoup4==4.12.2
+
+# Dépendances supplémentaires pour Python 3.11
+setuptools>=65.0.0
+wheel>=0.38.0
+
+# Transformers compatibles
+transformers==4.35.2
+tokenizers==0.15.0
+
+scikit-learn
+PyMuPDF
+pdfplumber
+statsmodels
+lxml==5.2.2
+
+psycopg2-binary
+SQLAlchemy

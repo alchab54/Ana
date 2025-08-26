@@ -1,0 +1,65 @@
+# Dockerfile.base
+# Image de base pour AnalyLit V4.1 avec dépendances système et Python pré-installées
+
+# Étape 1: Dépendances système et environnement Python
+FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04 AS base_builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/Paris
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+# Installer les dépendances système
+# Nous utilisons --no-install-recommends pour réduire la taille de l'image
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    tzdata \
+    && add-apt-repository ppa:deadsnakes/ppa -y \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-dev \
+    python3.11-venv \
+    python3-pip \
+    gcc \
+    g++ \
+    curl \
+    build-essential \
+    git \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Installer les outils de base Python
+RUN python -m pip install --upgrade pip setuptools wheel
+
+# Copier requirements.txt et installer les dépendances Python
+# Ici, nous n'utilisons PAS --no-cache-dir ni --ignore-installed
+# car le but est de les mettre en cache dans cette image de base.
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Étape 2: Image finale plus légère (optionnel, mais bonne pratique)
+# Nous copions les dépendances du stage 'base_builder' vers une nouvelle image 'runtime'
+# pour s'assurer que seuls les fichiers nécessaires sont inclus.
+FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/Paris
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+WORKDIR /app
+
+# Copier l'environnement Python du stage précédent
+# Inclut les libs Python et les exécutables installés par pip
+COPY --from=base_builder /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3.11/dist-packages
+COPY --from=base_builder /usr/local/bin/gunicorn /usr/local/bin/gunicorn
+COPY --from=base_builder /usr/local/bin/rq /usr/local/bin/rq
+# Assurez-vous que les dépendances système nécessaires à l'exécution sont également présentes
+COPY --from=base_builder /usr/lib/x86_64-linux-gnu/libGL.so.1 /usr/lib/x86_64-linux-gnu/
+COPY --from=base_builder /usr/lib/x86_64-linux-gnu/libglib-2.0.so.0 /usr/lib/x86_64-linux-gnu/
+# D'autres libs peuvent être nécessaires, à ajouter si des erreurs d'exécution surviennent
