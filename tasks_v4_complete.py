@@ -741,7 +741,8 @@ def fetch_pubtator_abstract(pmid: str) -> dict:
         details['doi'] = get_doi_from_pmid(pmid)
 
         time.sleep(0.2)  # politesse API
-        return {'id': pmid, 'title': title, 'abstract': abstract, 'database_source': 'pubmed'}
+        # CORRECTION : Retourner le dictionnaire 'details' qui contient toutes les informations
+        return details
 
     except Exception as e:
         print(f"❌ PubTator erreur pour PMID {pmid}: {e}")
@@ -951,8 +952,34 @@ def process_single_article_task(project_id: str, article_id: str, profile: dict,
         ).fetchone()
 
         if not article:
-            raise ValueError(f"Article {article_id} non trouvé dans le projet.")
+            # Si l'article n'est pas dans la base, on le récupère et on l'ajoute
+            print(f"Article {article_id} non trouvé en BDD, récupération des détails...")
+            details = fetch_article_details(article_id)
+            if not details or details.get('title') == 'Erreur de récupération':
+                raise ValueError(f"Impossible de récupérer les détails pour l'article {article_id}.")
+            
+            # Insérer le nouvel article dans la table search_results
+            session.execute(text("""
+                INSERT INTO search_results (id, project_id, article_id, title, abstract, database_source, created_at, url, doi, authors, journal, publication_date)
+                VALUES (:id, :project_id, :article_id, :title, :abstract, :database_source, :created_at, :url, :doi, :authors, :journal, :publication_date)
+            """), {
+                'id': str(uuid.uuid4()), 'project_id': project_id, 'article_id': article_id,
+                'title': details.get('title', 'Titre non trouvé'), 'abstract': details.get('abstract', ''),
+                'database_source': details.get('database_source', 'manual_fetch'), 'created_at': datetime.now(),
+                'url': details.get('url'), 'doi': details.get('doi'), 'authors': details.get('authors'),
+                'journal': details.get('journal'), 'publication_date': details.get('publication_date')
+            })
+            session.commit()
+            print(f"Article {article_id} ajouté à la base de données du projet.")
+            
+            # On relit l'article depuis la base pour avoir un objet cohérent
+            article = session.execute(
+                text("SELECT * FROM search_results WHERE project_id = :pid AND article_id = :aid"),
+                {'pid': project_id, 'aid': article_id}
+            ).fetchone()
 
+        if not article:
+             raise ValueError(f"Article {article_id} non trouvé dans le projet même après tentative d'ajout.")
         article_dict = dict(article._mapping)
         content_to_analyze = ""
         project_dir = PROJECTS_DIR / project_id

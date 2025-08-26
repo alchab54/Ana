@@ -145,7 +145,8 @@ def init_db():
                     relevance_justification TEXT,
                     validations TEXT,
                     analysis_source TEXT,
-                    FOREIGN KEY (project_id) REFERENCES projects(id)
+                    FOREIGN KEY (project_id) REFERENCES projects(id),
+                    UNIQUE (project_id, pmid) -- AJOUTEZ CETTE LIGNE
                 )
             """))
 
