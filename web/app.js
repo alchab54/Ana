@@ -48,6 +48,8 @@ document.addEventListener('DOMContentLoaded', () => {
         profileForm: document.getElementById('profileForm'),
         loadingOverlay: document.getElementById('loadingOverlay'),
         toastContainer: document.getElementById('toastContainer'),
+        zoteroImportForm: document.getElementById('zoteroImportForm'),
+
     };
 
     setupEventListeners();
@@ -79,6 +81,7 @@ function setupEventListeners() {
     // Formulaires
     elements.createProjectBtn?.addEventListener('click', () => openModal('newProjectModal'));
     elements.newProjectForm?.addEventListener('submit', handleCreateProject);
+    elements.zoteroImportForm?.addEventListener('submit', handleZoteroFileUpload);
     elements.multiSearchForm?.addEventListener('submit', handleMultiSearch);
     elements.runPipelineForm?.addEventListener('submit', handleRunPipeline);
     elements.gridForm?.addEventListener('submit', handleSaveGrid);
@@ -295,27 +298,19 @@ function handleWebSocketNotification(data) {
 
     const { type, project_id } = data;
 
+    // Logique de rafraîchissement unifiée et fiable
     switch (type) {
-        case 'article_processed':
-            // Si l'utilisateur est sur la page des résultats du bon projet,
-            // on met à jour uniquement les extractions et on redessine le tableau.
-            if (project_id === appState.currentProject?.id && appState.currentSection === 'results') {
-                (async () => {
-                    await loadProjectExtractions(project_id);
-                    renderResultsSection(); // Redessine uniquement la section des résultats
-                })();
-            }
-            break;
-
         case 'search_completed':
+        case 'article_processed': // C'est le cas qui nous intéresse
         case 'synthesis_completed':
         case 'analysis_completed':
         case 'pdf_upload_completed':
         case 'indexing_completed':
-            // Pour les autres notifications, un rechargement complet reste approprié.
+            // Si la notification concerne le projet actuellement ouvert, on le rafraîchit entièrement.
             if (project_id === appState.currentProject?.id) {
-                selectProject(project_id, true);
+                selectProject(project_id, true); // Le 'true' indique un rafraîchissement
             } else {
+                // Sinon, on met simplement à jour la liste des projets sur le côté.
                 loadProjects();
             }
             break;
@@ -2441,8 +2436,15 @@ async function handlePDFUpload(files) {
 }
 
 async function handleZoteroFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+    event.preventDefault(); // Empêche le rechargement de la page
+    
+    const fileInput = document.getElementById('zoteroFileInput');
+    if (!fileInput.files || fileInput.files.length === 0) {
+        showToast('Veuillez d\'abord sélectionner un fichier Zotero.', 'warning');
+        return;
+    }
+    const file = fileInput.files[0];
+
     if (!appState.currentProject) {
         showToast('Veuillez sélectionner un projet.', 'error');
         return;
@@ -2460,13 +2462,13 @@ async function handleZoteroFileUpload(event) {
         });
         
         showToast(result.message || 'Import depuis le fichier Zotero lancé.', 'info');
-        // Refresh project data to show new articles
+        // Rafraîchit les données du projet pour afficher les nouveaux articles
         await selectProject(appState.currentProject.id, true);
     } catch (error) {
         console.error('Erreur import fichier Zotero:', error);
     } finally {
         showLoadingOverlay(false);
-        event.target.value = ''; // Reset file input
+        fileInput.value = ''; // Réinitialise le champ de fichier
     }
 }
 
