@@ -595,6 +595,37 @@ def get_zotero_import_status(project_id):
     else:
         return jsonify({'status': 'pending'})
 
+@api_bp.route('/projects/<project_id>/import-zotero-file', methods=['POST'])
+def import_zotero_file(project_id):
+    """Importe des références depuis un fichier Zotero JSON."""
+    if 'file' not in request.files:
+        return jsonify({"error": "Aucun fichier fourni."}), 400
+
+    file = request.files['file']
+    if not file or not file.filename.endswith('.json'):
+        return jsonify({"error": "Veuillez fournir un fichier .json."}), 400
+    
+    try:
+        # Lire le contenu du fichier en mémoire
+        file_content = file.stream.read().decode("utf-8")
+        
+        # Lancer la tâche de fond avec le contenu du fichier
+        job = background_queue.enqueue(
+            import_from_zotero_file_task,
+            project_id=project_id,
+            json_content=file_content,
+            job_timeout='1h'
+        )
+        
+        return jsonify({
+            'message': 'L\'import depuis le fichier Zotero a été lancé.',
+            'job_id': job.id
+        }), 202
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de l'import du fichier Zotero: {e}")
+        return jsonify({"error": "Erreur interne du serveur lors de l'import."}), 500
+        
 # Upload PDF en lot
 def add_manual_articles_to_project(project_id, article_ids):
     """Ajoute une liste d'articles (PMID/DOI) à la base de données d'un projet."""

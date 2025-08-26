@@ -2774,3 +2774,20 @@ textarea.form-control {
     color: var(--color-text-secondary);
     margin-top: var(--space-8);
 }
+
+.status-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-left: 8px;
+}
+.source--pdf {
+    background-color: var(--color-bg-3);
+    color: var(--color-success);
+}
+.source--abstract {
+    background-color: var(--color-bg-2);
+    color: var(--color-warning);
+}

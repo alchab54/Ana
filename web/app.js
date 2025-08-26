@@ -94,26 +94,6 @@ function setupEventListeners() {
     if (zoteroFileInput) {
         zoteroFileInput.addEventListener('change', handleZoteroFileUpload);
     }
-    
-	const zoteroImportForm = document.getElementById('zoteroImportForm'); // Supposons que vous avez un formulaire avec cet ID
-	zoteroImportForm?.addEventListener('submit', async (e) => {
-		e.preventDefault();
-		if (!appState.currentProject) return;
-
-		const formData = new FormData(e.target);
-		showLoadingOverlay(true, "Import en cours...");
-		try {
-			await fetchAPI(`/projects/${appState.currentProject.id}/import-zotero`, {
-				method: 'POST',
-				body: formData, // Laisse le navigateur gérer le Content-Type pour FormData
-			});
-			showToast("L'import a été lancé. Les résultats apparaîtront bientôt.", 'info');
-		} catch (error) {
-			// géré par fetchAPI
-		} finally {
-			showLoadingOverlay(false);
-		}
-	});
 
     document.getElementById('addGridFieldBtn')?.addEventListener('click', () => addGridFieldInput());
     document.getElementById('pipelineSourceSelect')?.addEventListener('change', handlePipelineSourceChange);
@@ -1203,6 +1183,9 @@ function renderExtractionRow(extraction, isScreening) {
     if (validationStatus === 'include') rowClass = 'extraction-row--included';
     if (validationStatus === 'exclude') rowClass = 'extraction-row--excluded';
 
+    // DÉCLARATION CORRIGÉE : 'sourceBadge' est maintenant défini au début.
+    const sourceBadge = `<span class="status-badge source--${extraction.analysis_source}">${escapeHtml(extraction.analysis_source)}</span>`;
+
     const articleUrl = extraction.url || `https://pubmed.ncbi.nlm.nih.gov/${extraction.pmid}/`;
     const titleHtml = `
     <td class="title-cell">
@@ -1211,12 +1194,10 @@ function renderExtractionRow(extraction, isScreening) {
         ${sourceBadge}
     </td>`;
     
-    // Logique pour basculer entre les colonnes
     let dataCellHtml = '';
     if (isScreening) {
         dataCellHtml = `<td class="justification-cell">${escapeHtml(extraction.relevance_justification || 'N/A')}</td>`;
     } else {
-        // Nouvelle fonction pour afficher un aperçu des données extraites
         dataCellHtml = `<td>${renderExtractedDataPreview(extraction.extracted_data)}</td>`;
     }
 
@@ -1234,7 +1215,6 @@ function renderExtractionRow(extraction, isScreening) {
         </tr>`;
 
     const colspan = isScreening ? 5 : 4;
-	const sourceBadge = `<span class="status-badge source--${extraction.analysis_source}">${escapeHtml(extraction.analysis_source)}</span>`;
     const abstractRowHtml = (extraction.abstract) ? `
         <tr class="abstract-row hidden">
             <td colspan="${colspan}">
@@ -2270,7 +2250,7 @@ async function handleManualPDFUpload(articleId, file) {
     formData.append('file', file);
     // Le backend utilisera le nom du fichier pour l'article_id, mais on peut le passer en paramètre pour plus de robustesse si nécessaire
     // Par exemple : `/projects/${appState.currentProject.id}/${articleId}/upload-pdf`
-
+		
     try {
         // On utilise l'endpoint d'upload en lot qui est déjà intelligent
         const result = await fetchAPI(`/projects/${appState.currentProject.id}/upload-pdfs-bulk`, {
