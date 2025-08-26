@@ -42,8 +42,6 @@ from tasks_v4_complete import (
     fetch_article_details,
     sanitize_filename,
     import_from_zotero_file_task,
-    import_zotero_json_task,
-    generate_prisma_diagram_task
 )
 
 # Configuration

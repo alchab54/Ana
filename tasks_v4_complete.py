@@ -724,18 +724,21 @@ def fetch_article_details(article_id: str, database_source: str = None) -> dict:
         return details
 
 def fetch_pubtator_abstract(pmid: str) -> dict:
-    """Récupère le titre et le résumé d'un article via l'API PubTator avec retry."""
+    """Récupère le titre et le résumé d'un article via l'API PubTator et cherche le DOI."""
     url = f"https://www.ncbi.nlm.nih.gov/research/pubtator-api/publications/export/pubtator?pmids={pmid}"
+    details = {'id': pmid, 'title': 'Erreur de récupération', 'abstract': '', 'database_source': 'pubmed'}
     try:
         r = http_get_with_retries(url, timeout=20)
         content = r.text
 
-        # Patterns regex améliorés avec échappement du PMID
         title_match = re.search(rf'^{re.escape(pmid)}\|t\|(.*?)$', content, re.MULTILINE)
         abstract_match = re.search(rf'^{re.escape(pmid)}\|a\|(.*?)$', content, re.MULTILINE)
 
-        title = title_match.group(1).strip() if title_match else "Titre non trouvé"
-        abstract = abstract_match.group(1).strip() if abstract_match else ""
+        details['title'] = title_match.group(1).strip() if title_match else "Titre non trouvé"
+        details['abstract'] = abstract_match.group(1).strip() if abstract_match else ""
+
+        # Tenter de récupérer le DOI en parallèle
+        details['doi'] = get_doi_from_pmid(pmid)
 
         time.sleep(0.2)  # politesse API
         return {'id': pmid, 'title': title, 'abstract': abstract, 'database_source': 'pubmed'}
@@ -1438,19 +1441,16 @@ def run_atn_score_task(project_id: str):
         session.close()
 
 def import_pdfs_from_zotero_task(project_id: str, pmids: list, zotero_user_id: str, zotero_api_key: str):
-    """Downloads PDFs from Zotero for a given list of article identifiers (PMID or DOI)."""
+    """Importe des PDF depuis Zotero pour une liste d'articles avec recherche ciblée."""
     if not all([zotero_user_id, zotero_api_key]):
         send_project_notification(project_id, 'zotero_import_failed', 'Identifiants Zotero non configurés.')
         return
 
     print(f"🔄 Lancement de l'import Zotero pour {len(pmids)} articles dans le projet {project_id}...")
-
     try:
-        # Pour cette tâche, nous supposons une bibliothèque utilisateur.
         zot = zotero.Zotero(zotero_user_id, 'user', zotero_api_key)
         zot.key_info()
         print("✅ Connexion à l'API Zotero réussie.")
-
     except Exception as e:
         error_message = f'Échec de la connexion à Zotero: {e}'
         print(f"❌ {error_message}")
@@ -1459,75 +1459,51 @@ def import_pdfs_from_zotero_task(project_id: str, pmids: list, zotero_user_id: s
 
     project_dir = PROJECTS_DIR / project_id
     project_dir.mkdir(exist_ok=True)
-
     successful_imports = []
     failed_imports = []
 
-    try:
-        all_items = zot.items()
-        print(f"📚 {len(all_items)} articles trouvés dans la bibliothèque Zotero.")
-
-    except Exception as e:
-        error_message = f"Impossible de récupérer les articles de la bibliothèque Zotero : {e}"
-        print(f"❌ {error_message}")
-        send_project_notification(project_id, 'zotero_import_failed', error_message)
-        return
-
     for article_id in pmids:
-        found_in_zotero = False
+        try:
+            # Interroger directement l'API Zotero pour l'article spécifique
+            items = zot.items(q=article_id, limit=5)
+            if not items:
+                print(f"⏩ Article {article_id} non trouvé dans Zotero.")
+                failed_imports.append(article_id)
+                continue
 
-        for item in all_items:
-            item_data = item.get('data', {})
-            search_fields = [
-                item_data.get('DOI', ''),
-                item_data.get('extra', ''),
-            ]
+            item = items[0] # On prend le premier résultat pertinent
+            attachments = zot.children(item['key'])
+            pdf_found = False
+            for attachment in attachments:
+                if attachment.get('data', {}).get('contentType') == 'application/pdf':
+                    pdf_content = zot.file(attachment['key'])
+                    safe_filename = sanitize_filename(article_id) + ".pdf"
+                    pdf_path = project_dir / safe_filename
+                    with open(pdf_path, 'wb') as f:
+                        f.write(pdf_content)
+                    print(f"✅ PDF téléchargé pour {article_id}")
+                    successful_imports.append(article_id)
+                    pdf_found = True
+                    break
+            
+            if not pdf_found:
+                failed_imports.append(article_id)
 
-            if any(article_id in str(field) for field in search_fields):
-                found_in_zotero = True
-
-                try:
-                    attachments = zot.children(item['key'])
-                    pdf_found = False
-
-                    for attachment in attachments:
-                        if attachment.get('data', {}).get('contentType') == 'application/pdf':
-                            pdf_content = zot.file(attachment['key'])
-                            safe_filename = sanitize_filename(article_id) + ".pdf"
-                            pdf_path = project_dir / safe_filename
-
-                            with open(pdf_path, 'wb') as f:
-                                f.write(pdf_content)
-
-                            print(f"✅ PDF téléchargé pour {article_id}")
-                            successful_imports.append(article_id)
-                            pdf_found = True
-                            break
-
-                    if not pdf_found:
-                        failed_imports.append(article_id)
-
-                except Exception as e:
-                    print(f"❌ Erreur de téléchargement du PDF pour {article_id}: {e}")
-                    failed_imports.append(article_id)
-
-                break
-
-        if not found_in_zotero:
+        except Exception as e:
+            print(f"❌ Erreur de téléchargement pour {article_id}: {e}")
             failed_imports.append(article_id)
-
-        time.sleep(0.3)
+        
+        time.sleep(0.3) # Politesse envers l'API
 
     message = f"Import Zotero terminé. {len(successful_imports)} PDF importés, {len(failed_imports)} échecs."
     print(f"📊 {message}")
-
     send_project_notification(
         project_id,
         'zotero_import_completed',
         message,
         {'successful': successful_imports, 'failed': list(set(failed_imports))}
     )
-
+    
 def fetch_online_pdf_task(project_id, article_ids):
     """Recherche et télécharge des PDF OA via DOI→Unpaywall."""
     print(f"🌐 Recherche OA (DOI→Unpaywall) pour {len(article_ids)} articles...")
@@ -1867,9 +1843,69 @@ def import_from_zotero_file_task(*args, **kwargs):
     """Placeholder pour l'import depuis fichier Zotero."""
     pass
 
-def import_zotero_json_task(*args, **kwargs):
-    """Placeholder pour l'import JSON Zotero."""
-    pass
+def import_pdfs_from_zotero_task(project_id: str, pmids: list, zotero_user_id: str, zotero_api_key: str):
+    """Importe des PDF depuis Zotero pour une liste d'articles avec recherche ciblée."""
+    if not all([zotero_user_id, zotero_api_key]):
+        send_project_notification(project_id, 'zotero_import_failed', 'Identifiants Zotero non configurés.')
+        return
+
+    print(f"🔄 Lancement de l'import Zotero pour {len(pmids)} articles dans le projet {project_id}...")
+    try:
+        zot = zotero.Zotero(zotero_user_id, 'user', zotero_api_key)
+        zot.key_info()
+        print("✅ Connexion à l'API Zotero réussie.")
+    except Exception as e:
+        error_message = f'Échec de la connexion à Zotero: {e}'
+        print(f"❌ {error_message}")
+        send_project_notification(project_id, 'zotero_import_failed', error_message)
+        return
+
+    project_dir = PROJECTS_DIR / project_id
+    project_dir.mkdir(exist_ok=True)
+    successful_imports = []
+    failed_imports = []
+
+    for article_id in pmids:
+        try:
+            # Interroger directement l'API Zotero pour l'article spécifique
+            items = zot.items(q=article_id, limit=5)
+            if not items:
+                print(f"⏩ Article {article_id} non trouvé dans Zotero.")
+                failed_imports.append(article_id)
+                continue
+
+            item = items[0] # On prend le premier résultat pertinent
+            attachments = zot.children(item['key'])
+            pdf_found = False
+            for attachment in attachments:
+                if attachment.get('data', {}).get('contentType') == 'application/pdf':
+                    pdf_content = zot.file(attachment['key'])
+                    safe_filename = sanitize_filename(article_id) + ".pdf"
+                    pdf_path = project_dir / safe_filename
+                    with open(pdf_path, 'wb') as f:
+                        f.write(pdf_content)
+                    print(f"✅ PDF téléchargé pour {article_id}")
+                    successful_imports.append(article_id)
+                    pdf_found = True
+                    break
+
+            if not pdf_found:
+                failed_imports.append(article_id)
+
+        except Exception as e:
+            print(f"❌ Erreur de téléchargement pour {article_id}: {e}")
+            failed_imports.append(article_id)
+
+        time.sleep(0.3) # Politesse envers l'API
+
+    message = f"Import Zotero terminé. {len(successful_imports)} PDF importés, {len(failed_imports)} échecs."
+    print(f"📊 {message}")
+    send_project_notification(
+        project_id,
+        'zotero_import_completed',
+        message,
+        {'successful': successful_imports, 'failed': list(set(failed_imports))}
+    )
 
 def generate_prisma_diagram_task(*args, **kwargs):
     """Placeholder pour la génération de diagramme PRISMA."""
